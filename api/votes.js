@@ -1,10 +1,12 @@
-import { sql } from '@vercel/postgres';
+import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const sql = neon(process.env.DATABASE_URL);
 
   try {
     await sql`
@@ -18,7 +20,7 @@ export default async function handler(req, res) {
     `;
 
     if (req.method === 'GET') {
-      const { rows } = await sql`
+      const rows = await sql`
         SELECT user_name, date::text, status FROM votes
         WHERE date >= '2026-07-01' AND date <= '2026-09-30'
         ORDER BY date
@@ -30,7 +32,7 @@ export default async function handler(req, res) {
       const { user_name, date, status } = req.body;
       if (!user_name || !date || !status) return res.status(400).json({ error: 'Chýbajú dáta' });
 
-      const { rows } = await sql`
+      const rows = await sql`
         INSERT INTO votes (user_name, date, status)
         VALUES (${user_name}, ${date}, ${status})
         ON CONFLICT (user_name, date) DO UPDATE SET status = EXCLUDED.status
@@ -50,6 +52,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Metóda nie je povolená' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Chyba servera' });
+    return res.status(500).json({ error: err.message });
   }
 }
