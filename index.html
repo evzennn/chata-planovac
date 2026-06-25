@@ -68,8 +68,12 @@
 
   .count-row { font-size: 9px; color: #aaa; margin-top: 2px; }
 
-  .users-section { margin-top: 2rem; background: #fff; border-radius: 12px; border: 0.5px solid #ddd; padding: 1rem 1.25rem; }
-  .users-title { font-size: 13px; color: #888; margin-bottom: 10px; }
+  .card {
+    margin-top: 2rem; background: #fff; border-radius: 12px;
+    border: 0.5px solid #ddd; padding: 1rem 1.25rem;
+  }
+  .card-title { font-size: 13px; color: #888; margin-bottom: 10px; }
+
   .users-list { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     display: flex; align-items: center; gap: 6px; padding: 4px 12px;
@@ -80,6 +84,31 @@
   .chip:hover { border-color: #aaa; }
   .chip.me { border-color: #1D9E75; background: #E1F5EE; color: #085041; }
   .chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Summary styles */
+  .sum-empty { font-size: 13px; color: #aaa; }
+  .sum-best-label {
+    font-size: 13px; font-weight: 500; color: #085041;
+    margin-bottom: 8px;
+  }
+  .sum-best-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
+  .sum-date-chip {
+    padding: 3px 10px; border-radius: 99px;
+    background: #E1F5EE; border: 0.5px solid #1D9E75;
+    font-size: 12px; color: #085041;
+  }
+  .sum-rank-label { font-size: 13px; color: #888; margin-bottom: 8px; }
+  .sum-rows { display: flex; flex-direction: column; gap: 5px; }
+  .sum-row {
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+  }
+  .sum-row-date { width: 130px; color: #444; flex-shrink: 0; }
+  .sum-bar-bg {
+    flex: 1; height: 8px; background: #f0efe8; border-radius: 4px; overflow: hidden;
+    min-width: 60px;
+  }
+  .sum-bar-fill { height: 100%; background: #1D9E75; border-radius: 4px; transition: width 0.3s; }
+  .sum-row-count { width: 70px; text-align: right; color: #666; flex-shrink: 0; }
 
   .tooltip {
     position: fixed; background: #fff; border: 0.5px solid #ccc;
@@ -98,12 +127,13 @@
   @media (max-width: 480px) {
     .day { min-height: 44px; }
     .bar { width: 6px; height: 6px; }
+    .sum-row-date { width: 110px; }
   }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🏕️ Plánovač chaty</h1>
+  <h1>🏕️ Plánovač chaty — leto 2026</h1>
 
   <div class="login-box">
     <input id="nameInput" placeholder="Tvoje meno..." maxlength="30" />
@@ -123,15 +153,25 @@
 
   <div class="months" id="months"></div>
 
-  <div class="users-section" style="margin-top:2rem">
-    <div class="users-title">Účastníci:</div>
+  <div class="card">
+    <div class="card-title">Účastníci:</div>
     <div class="users-list" id="usersList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Súhrn dostupnosti:</div>
+    <div id="summary"><span class="sum-empty">Načítavam...</span></div>
   </div>
 </div>
 <div class="tooltip" id="tooltip"></div>
 
 <script>
 const COLORS = ['#1D9E75','#378ADD','#BA7517','#D4537E','#7F77DD','#D85A30','#3B6D11','#E24B4A','#185FA5','#534AB7','#993556','#639922'];
+const MONTHS = [
+  { year: 2026, month: 6 },
+  { year: 2026, month: 7 },
+  { year: 2026, month: 8 },
+];
 
 let currentUser = null;
 let users = [];
@@ -229,19 +269,12 @@ async function toggleVote(key) {
   }
 }
 
-function getMonths() {
-  return [0, 1].map(i => {
-    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    return { year: d.getFullYear(), month: d.getMonth() };
-  });
-}
-
 function renderMonths() {
   const container = document.getElementById('months');
   container.innerHTML = '';
   const dayNames = ['Po','Ut','St','Št','Pi','So','Ne'];
 
-  getMonths().forEach(({ year, month }) => {
+  MONTHS.forEach(({ year, month }) => {
     const wrap = document.createElement('div');
     const title = document.createElement('div');
     title.className = 'month-title';
@@ -285,12 +318,13 @@ function renderMonths() {
         dayVotes.forEach(([name, v]) => {
           const b = document.createElement('div');
           b.className = 'bar';
-          b.style.background = v === 'yes' ? '#1D9E75' : '#E24B4A';
+          const u = users.find(u => u.name === name);
+          b.style.background = v === 'yes' ? (u ? u.color : '#1D9E75') : '#E24B4A';
           bars.appendChild(b);
         });
         el.appendChild(bars);
         const yesC = dayVotes.filter(([,v]) => v === 'yes').length;
-        const noC = dayVotes.filter(([,v]) => v === 'no').length;
+        const noC  = dayVotes.filter(([,v]) => v === 'no').length;
         const cnt = document.createElement('div');
         cnt.className = 'count-row';
         cnt.textContent = (yesC ? `✓${yesC} ` : '') + (noC ? `✗${noC}` : '');
@@ -320,12 +354,69 @@ function renderUsers() {
     dot.className = 'chip-dot'; dot.style.background = u.color;
     chip.appendChild(dot);
     chip.appendChild(document.createTextNode(u.name));
-    chip.addEventListener('click', () => {
-      currentUser = u.name;
-      render();
-    });
+    chip.addEventListener('click', () => { currentUser = u.name; render(); });
     list.appendChild(chip);
   });
+}
+
+function renderSummary() {
+  const container = document.getElementById('summary');
+  if (users.length === 0) {
+    container.innerHTML = '<span class="sum-empty">Najprv sa musí prihlásiť aspoň jeden účastník.</span>';
+    return;
+  }
+
+  const scored = [];
+  MONTHS.forEach(({ year, month }) => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = dayKey(year, month, d);
+      const date = new Date(year, month, d);
+      if (date < today) continue;
+      const dayVotes = votes[key] || {};
+      const yesCount = Object.values(dayVotes).filter(v => v === 'yes').length;
+      if (yesCount > 0) {
+        scored.push({ key, date, yesCount });
+      }
+    }
+  });
+
+  if (scored.length === 0) {
+    container.innerHTML = '<span class="sum-empty">Zatiaľ nikto nič neoznačil. Klikni na dni v kalendári.</span>';
+    return;
+  }
+
+  scored.sort((a, b) => b.yesCount - a.yesCount || a.date - b.date);
+
+  const fmt = date => date.toLocaleDateString('sk-SK', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  const allCanCome = scored.filter(d => d.yesCount === users.length);
+  let html = '';
+
+  if (allCanCome.length > 0) {
+    html += `<div class="sum-best-label">Môžu ísť VŠETCI (${users.length}):</div>`;
+    html += `<div class="sum-best-dates">`;
+    allCanCome.forEach(d => {
+      html += `<span class="sum-date-chip">${fmt(d.date)}</span>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<div style="font-size:13px;color:#aaa;margin-bottom:12px">Zatiaľ žiadny deň, keď môžu ísť všetci.</div>`;
+  }
+
+  html += `<div class="sum-rank-label">Dni podľa počtu záujemcov:</div>`;
+  html += `<div class="sum-rows">`;
+  scored.slice(0, 15).forEach(d => {
+    const pct = Math.round(d.yesCount / users.length * 100);
+    html += `<div class="sum-row">
+      <span class="sum-row-date">${fmt(d.date)}</span>
+      <span class="sum-bar-bg"><span class="sum-bar-fill" style="width:${pct}%"></span></span>
+      <span class="sum-row-count">${d.yesCount} / ${users.length}</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  container.innerHTML = html;
 }
 
 function renderStatus() {
@@ -355,7 +446,7 @@ function showTooltip(e, key, date) {
 }
 function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
 
-function render() { renderStatus(); renderMonths(); renderUsers(); }
+function render() { renderStatus(); renderMonths(); renderUsers(); renderSummary(); }
 
 document.getElementById('loginBtn').addEventListener('click', login);
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });

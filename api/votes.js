@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const { rows } = await sql`
         SELECT user_name, date::text, status FROM votes
-        WHERE date >= CURRENT_DATE
+        WHERE date >= '2026-07-01' AND date <= '2026-09-30'
         ORDER BY date
       `;
       return res.status(200).json(rows);
